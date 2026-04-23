@@ -8,7 +8,7 @@ export type BaseEntity = {
 export type Employee = BaseEntity & {
   name: string;
   role: string | null;
-  weekly_salary: number;
+  hourly_rate: number;
   active: boolean;
 };
 
@@ -64,6 +64,7 @@ export type EmployeePaymentStatus = "pending" | "paid" | "cancelled";
 export type EmployeePayment = BaseEntity & {
   employee_id: string;
   week_start: string;
+  hours_worked: number | null;
   amount: number;
   status: EmployeePaymentStatus;
   payment_date: string | null;

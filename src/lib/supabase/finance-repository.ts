@@ -293,7 +293,7 @@ export const financeRepository = {
   updateEmployee(
     supabase: SupabaseClient,
     id: string,
-    patch: Partial<Pick<Employee, "name" | "role" | "weekly_salary" | "active">>,
+    patch: Partial<Pick<Employee, "name" | "role" | "hourly_rate" | "active">>,
   ) {
     return updateByCompanyRow<Employee>(supabase, "employees", id, patch as Record<string, unknown>);
   },
@@ -377,7 +377,10 @@ export const financeRepository = {
     supabase: SupabaseClient,
     id: string,
     patch: Partial<
-      Pick<EmployeePayment, "employee_id" | "week_start" | "amount" | "status" | "payment_date" | "notes">
+      Pick<
+        EmployeePayment,
+        "employee_id" | "week_start" | "hours_worked" | "amount" | "status" | "payment_date" | "notes"
+      >
     >,
   ) {
     const companyId = await resolveCompanyId(supabase);

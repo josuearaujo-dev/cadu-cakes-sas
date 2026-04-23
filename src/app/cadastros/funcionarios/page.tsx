@@ -16,7 +16,7 @@ export default function FuncionariosPage() {
   const [items, setItems] = useState<Employee[]>([]);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
-  const [weeklySalaryInput, setWeeklySalaryInput] = useState("");
+  const [hourlyRateInput, setHourlyRateInput] = useState("");
   const [active, setActive] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -45,15 +45,15 @@ export default function FuncionariosPage() {
     void load();
   }, [load]);
 
-  const parsedWeeklySalary = useMemo(() => parseMoneyInput(weeklySalaryInput), [weeklySalaryInput]);
-  const weeklySalaryValid = parsedWeeklySalary !== null && parsedWeeklySalary >= 0;
+  const parsedHourlyRate = useMemo(() => parseMoneyInput(hourlyRateInput), [hourlyRateInput]);
+  const hourlyRateValid = parsedHourlyRate !== null && parsedHourlyRate >= 0;
 
   function closeModal() {
     setShowModal(false);
     setEditId(null);
     setName("");
     setRole("");
-    setWeeklySalaryInput("");
+    setHourlyRateInput("");
     setActive(true);
   }
 
@@ -62,7 +62,7 @@ export default function FuncionariosPage() {
     setEditId(null);
     setName("");
     setRole("");
-    setWeeklySalaryInput("");
+    setHourlyRateInput("");
     setActive(true);
     setShowModal(true);
   }
@@ -72,23 +72,23 @@ export default function FuncionariosPage() {
     setLoading(true);
     setError(null);
     try {
-      const weeklySalary = parseMoneyInput(weeklySalaryInput);
-      if (weeklySalary === null || weeklySalary < 0) {
-        throw new Error("Informe um salário válido (número ≥ 0).");
+      const hourlyRate = parseMoneyInput(hourlyRateInput);
+      if (hourlyRate === null || hourlyRate < 0) {
+        throw new Error("Informe um valor/hora válido (número ≥ 0).");
       }
       const supabase = createClient();
       if (editId) {
         await financeRepository.updateEmployee(supabase, editId, {
           name,
           role: role || null,
-          weekly_salary: weeklySalary,
+          hourly_rate: hourlyRate,
           active,
         });
       } else {
         await financeRepository.createEmployee(supabase, {
           name,
           role: role || null,
-          weekly_salary: weeklySalary,
+          hourly_rate: hourlyRate,
           active: true,
         });
       }
@@ -148,7 +148,7 @@ export default function FuncionariosPage() {
               <tr>
                 <th>Nome</th>
                 <th>Cargo</th>
-                <th>Salário semanal</th>
+                <th>Valor/hora</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -158,7 +158,7 @@ export default function FuncionariosPage() {
                 <tr key={item.id}>
                   <td>{item.name}</td>
                   <td>{item.role || "-"}</td>
-                  <td>{item.weekly_salary.toFixed(2)}</td>
+                  <td>{item.hourly_rate.toFixed(2)}</td>
                   <td>{item.active ? "Ativo" : "Inativo"}</td>
                   <td>
                     <div className="cadastro-row-actions">
@@ -170,7 +170,7 @@ export default function FuncionariosPage() {
                           setEditId(item.id);
                           setName(item.name);
                           setRole(item.role ?? "");
-                          setWeeklySalaryInput(moneyDraftFromNumber(Number(item.weekly_salary)) || "0");
+                          setHourlyRateInput(moneyDraftFromNumber(Number(item.hourly_rate)) || "0");
                           setActive(item.active);
                           setShowModal(true);
                         }}
@@ -209,14 +209,14 @@ export default function FuncionariosPage() {
                   <input value={role} onChange={(e) => setRole(e.target.value)} />
                 </label>
                 <label>
-                  Salário semanal
+                  Valor da hora
                   <input
                     type="text"
                     inputMode="decimal"
                     autoComplete="off"
                     placeholder="0,00"
-                    value={weeklySalaryInput}
-                    onChange={(e) => setWeeklySalaryInput(sanitizeMoneyDraft(e.target.value))}
+                    value={hourlyRateInput}
+                    onChange={(e) => setHourlyRateInput(sanitizeMoneyDraft(e.target.value))}
                   />
                 </label>
                 {editId ? (
@@ -229,7 +229,7 @@ export default function FuncionariosPage() {
                   <button type="button" className="button-cancel" onClick={() => !loading && closeModal()}>
                     Cancelar
                   </button>
-                  <button type="submit" className="button-confirm" disabled={loading || !weeklySalaryValid}>
+                  <button type="submit" className="button-confirm" disabled={loading || !hourlyRateValid}>
                     {loading ? "Salvando..." : editId ? "Salvar" : "Cadastrar"}
                   </button>
                 </div>

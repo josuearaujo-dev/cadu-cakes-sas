@@ -26,6 +26,7 @@ type EmployeePaymentRow = {
   id: string;
   employee_id: string;
   week_start: string;
+  hours_worked: number | null;
   amount: number;
   status: EmployeePaymentStatus;
   payment_date: string | null;
@@ -54,7 +55,7 @@ export default function PagamentosPage() {
   const [weekStart, setWeekStart] = useState(() =>
     toLocalISODate(getWeekStartContainingDate(new Date(), "sunday")),
   );
-  const [amountInput, setAmountInput] = useState("");
+  const [hoursWorkedInput, setHoursWorkedInput] = useState("");
   const [status, setStatus] = useState<EmployeePaymentStatus>("pending");
   const [paymentDate, setPaymentDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -63,7 +64,7 @@ export default function PagamentosPage() {
   const [pageReady, setPageReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Evita repetir o preenchimento do valor quando só a lista `employees` é recarregada (mesmo funcionário). */
-  const lastSalaryFilledForEmployeeId = useRef<string | undefined>(undefined);
+  const lastHourlyPrefillEmployeeId = useRef<string | undefined>(undefined);
 
   const load = useCallback(async () => {
     try {
@@ -101,23 +102,21 @@ export default function PagamentosPage() {
     setEmployeeId((prev) => (prev && employees.some((e) => e.id === prev) ? prev : employees[0].id));
   }, [employees]);
 
-  /** Novo pagamento: preenche o valor com o salário quando o funcionário fica definido (ex.: primeiro da lista). */
+  /** Novo pagamento: evita re-preenchimento de horas ao recarregar lista de funcionários. */
   useEffect(() => {
     if (!showEntryModal || editingPaymentId || !employeeId) return;
-    const emp = employees.find((e) => e.id === employeeId);
-    if (!emp) return;
-    if (lastSalaryFilledForEmployeeId.current === employeeId) return;
-    lastSalaryFilledForEmployeeId.current = employeeId;
-    setAmountInput(moneyDraftFromNumber(Number(emp.weekly_salary)) || "");
+    if (lastHourlyPrefillEmployeeId.current === employeeId) return;
+    lastHourlyPrefillEmployeeId.current = employeeId;
+    setHoursWorkedInput("");
   }, [showEntryModal, editingPaymentId, employeeId, employees]);
 
   function closeEntryModal() {
     if (loading) return;
     setError(null);
-    lastSalaryFilledForEmployeeId.current = undefined;
+    lastHourlyPrefillEmployeeId.current = undefined;
     setShowEntryModal(false);
     setEditingPaymentId(null);
-    setAmountInput("");
+    setHoursWorkedInput("");
     setStatus("pending");
     setPaymentDate("");
     setNotes("");
@@ -126,10 +125,10 @@ export default function PagamentosPage() {
   function openNewPaymentModal() {
     setError(null);
     setEditingPaymentId(null);
-    lastSalaryFilledForEmployeeId.current = undefined;
+    lastHourlyPrefillEmployeeId.current = undefined;
     setEmployeeId("");
     setWeekStart(toLocalISODate(getWeekStartContainingDate(new Date(), startOfWeek)));
-    setAmountInput("");
+    setHoursWorkedInput("");
     setStatus("pending");
     setPaymentDate("");
     setNotes("");
@@ -152,22 +151,21 @@ export default function PagamentosPage() {
 
   function onEmployeeSelectChange(newId: string) {
     setEmployeeId(newId);
-    lastSalaryFilledForEmployeeId.current = newId;
-    const emp = employees.find((e) => e.id === newId);
-    if (emp) {
-      setAmountInput(moneyDraftFromNumber(Number(emp.weekly_salary)) || "");
-    } else {
-      setAmountInput("");
-    }
+    lastHourlyPrefillEmployeeId.current = newId;
+    setHoursWorkedInput("");
   }
 
   function openEditPaymentModal(item: EmployeePaymentRow) {
     setError(null);
-    lastSalaryFilledForEmployeeId.current = item.employee_id;
+    lastHourlyPrefillEmployeeId.current = item.employee_id;
     setEditingPaymentId(item.id);
     setEmployeeId(item.employee_id);
     setWeekStart(item.week_start);
-    setAmountInput(moneyDraftFromNumber(Number(item.amount)) || "");
+    setHoursWorkedInput(
+      item.hours_worked !== null && Number.isFinite(Number(item.hours_worked))
+        ? moneyDraftFromNumber(Number(item.hours_worked)) || ""
+        : "",
+    );
     setStatus(item.status);
     setPaymentDate(item.payment_date ?? "");
     setNotes(item.notes ?? "");
@@ -209,7 +207,7 @@ export default function PagamentosPage() {
       if (editingPaymentId === item.id) {
         setShowEntryModal(false);
         setEditingPaymentId(null);
-        setAmountInput("");
+        setHoursWorkedInput("");
         setStatus("pending");
         setPaymentDate("");
         setNotes("");
@@ -239,14 +237,22 @@ export default function PagamentosPage() {
     setError(null);
     try {
       if (!employeeId) throw new Error("Selecione um funcionário.");
-      const amountValue = parseMoneyInput(amountInput);
-      if (amountValue === null || amountValue <= 0) {
-        throw new Error("Informe um valor válido maior que zero.");
+      const hoursWorked = parseMoneyInput(hoursWorkedInput);
+      if (hoursWorked === null || hoursWorked <= 0) {
+        throw new Error("Informe as horas trabalhadas (valor maior que zero).");
       }
+      const employee = employees.find((e) => e.id === employeeId);
+      if (!employee) throw new Error("Funcionário inválido.");
+      const hourlyRate = Number(employee.hourly_rate);
+      if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+        throw new Error("O funcionário selecionado precisa ter valor da hora maior que zero.");
+      }
+      const amountValue = Number((hoursWorked * hourlyRate).toFixed(2));
       const supabase = createClient();
       const payload = {
         employee_id: employeeId,
         week_start: weekStart,
+        hours_worked: hoursWorked,
         amount: amountValue,
         status,
         payment_date: paymentDate || null,
@@ -277,8 +283,12 @@ export default function PagamentosPage() {
   );
   const avg = payments.length > 0 ? totalWeek / payments.length : 0;
 
-  const parsedAmount = parseMoneyInput(amountInput);
-  const amountValid = parsedAmount !== null && parsedAmount > 0;
+  const parsedHoursWorked = parseMoneyInput(hoursWorkedInput);
+  const hoursWorkedValid = parsedHoursWorked !== null && parsedHoursWorked > 0;
+  const selectedEmployee = employees.find((e) => e.id === employeeId);
+  const selectedHourlyRate = Number(selectedEmployee?.hourly_rate ?? 0);
+  const previewAmount =
+    hoursWorkedValid && selectedHourlyRate > 0 ? Number((Number(parsedHoursWorked) * selectedHourlyRate).toFixed(2)) : 0;
 
   if (!pageReady) {
     return <BrandedFullPageLoader />;
@@ -326,6 +336,7 @@ export default function PagamentosPage() {
               <tr>
                 <th>Funcionário</th>
                 <th>Semana</th>
+                <th>Horas</th>
                 <th>Valor</th>
                 <th>Status</th>
                 <th>Data pgto</th>
@@ -335,7 +346,7 @@ export default function PagamentosPage() {
             <tbody>
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="hint">
+                  <td colSpan={7} className="hint">
                     Nenhum registo nesta vista. Use <strong>+ Novo pagamento</strong> ou ajuste os filtros.
                   </td>
                 </tr>
@@ -344,6 +355,7 @@ export default function PagamentosPage() {
                   <tr key={item.id}>
                     <td>{item.employee?.name || "—"}</td>
                     <td>{item.week_start}</td>
+                    <td>{item.hours_worked !== null ? Number(item.hours_worked).toFixed(2) : "—"}</td>
                     <td>{formatCurrency(Number(item.amount), currency)}</td>
                     <td
                       className={
@@ -443,15 +455,15 @@ export default function PagamentosPage() {
                 </div>
                 <div className="pagamentos-entry-modal__section pagamentos-entry-modal__section--grid">
                   <label>
-                    Valor
+                    Horas trabalhadas
                     <input
                       type="text"
-                      name="employee_payment_amount"
+                      name="employee_payment_hours"
                       inputMode="decimal"
                       autoComplete="off"
-                      placeholder="0,00"
-                      value={amountInput}
-                      onChange={(e) => setAmountInput(sanitizeMoneyDraft(e.target.value))}
+                      placeholder="Ex.: 40,00"
+                      value={hoursWorkedInput}
+                      onChange={(e) => setHoursWorkedInput(sanitizeMoneyDraft(e.target.value))}
                     />
                   </label>
                   <label>
@@ -461,6 +473,16 @@ export default function PagamentosPage() {
                       <option value="paid">Pago</option>
                       <option value="cancelled">Cancelado</option>
                     </select>
+                  </label>
+                </div>
+                <div className="pagamentos-entry-modal__section pagamentos-entry-modal__section--grid">
+                  <label>
+                    Valor/hora (cadastro)
+                    <input type="text" value={formatCurrency(selectedHourlyRate, currency)} disabled />
+                  </label>
+                  <label>
+                    Valor calculado da semana
+                    <input type="text" value={formatCurrency(previewAmount, currency)} disabled />
                   </label>
                 </div>
                 <div className="pagamentos-entry-modal__section pagamentos-entry-modal__section--grid">
@@ -482,7 +504,11 @@ export default function PagamentosPage() {
                   <button type="button" className="button-cancel" onClick={() => closeEntryModal()}>
                     Cancelar
                   </button>
-                  <button type="submit" className="button-confirm" disabled={loading || !amountValid}>
+                  <button
+                    type="submit"
+                    className="button-confirm"
+                    disabled={loading || !hoursWorkedValid || selectedHourlyRate <= 0}
+                  >
                     {loading ? "Salvando..." : editingPaymentId ? "Guardar alterações" : "Registrar pagamento"}
                   </button>
                 </div>

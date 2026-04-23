@@ -27,7 +27,7 @@ export default function CadastrosPage() {
 
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
-  const [employeeSalaryInput, setEmployeeSalaryInput] = useState("");
+  const [employeeHourlyRateInput, setEmployeeHourlyRateInput] = useState("");
 
   const [supplierName, setSupplierName] = useState("");
   const [supplierContact, setSupplierContact] = useState("");
@@ -54,8 +54,11 @@ export default function CadastrosPage() {
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-  const parsedEmployeeSalary = useMemo(() => parseMoneyInput(employeeSalaryInput), [employeeSalaryInput]);
-  const employeeSalaryValid = parsedEmployeeSalary !== null && parsedEmployeeSalary >= 0;
+  const parsedEmployeeHourlyRate = useMemo(
+    () => parseMoneyInput(employeeHourlyRateInput),
+    [employeeHourlyRateInput],
+  );
+  const employeeHourlyRateValid = parsedEmployeeHourlyRate !== null && parsedEmployeeHourlyRate >= 0;
 
   const tabs = useMemo(
     () => [
@@ -109,7 +112,7 @@ export default function CadastrosPage() {
     setEmployeeEditId(null);
     setEmployeeName("");
     setEmployeeRole("");
-    setEmployeeSalaryInput("");
+    setEmployeeHourlyRateInput("");
     setEmployeeActive(true);
   }
 
@@ -118,7 +121,7 @@ export default function CadastrosPage() {
     setEmployeeEditId(null);
     setEmployeeName("");
     setEmployeeRole("");
-    setEmployeeSalaryInput("");
+    setEmployeeHourlyRateInput("");
     setEmployeeActive(true);
     setShowEmployeeModal(true);
   }
@@ -183,23 +186,23 @@ export default function CadastrosPage() {
     setLoading(true);
     setError(null);
     try {
-      const weeklySalary = parseMoneyInput(employeeSalaryInput);
-      if (weeklySalary === null || weeklySalary < 0) {
-        throw new Error("Informe um salário válido (número ≥ 0).");
+      const hourlyRate = parseMoneyInput(employeeHourlyRateInput);
+      if (hourlyRate === null || hourlyRate < 0) {
+        throw new Error("Informe um valor/hora válido (número ≥ 0).");
       }
       const supabase = createClient();
       if (employeeEditId) {
         await financeRepository.updateEmployee(supabase, employeeEditId, {
           name: employeeName,
           role: employeeRole || null,
-          weekly_salary: weeklySalary,
+          hourly_rate: hourlyRate,
           active: employeeActive,
         });
       } else {
         await financeRepository.createEmployee(supabase, {
           name: employeeName,
           role: employeeRole || null,
-          weekly_salary: weeklySalary,
+          hourly_rate: hourlyRate,
           active: true,
         });
       }
@@ -429,7 +432,7 @@ export default function CadastrosPage() {
                   <tr>
                     <th>Nome</th>
                     <th>Cargo</th>
-                    <th>Salário semanal</th>
+                    <th>Valor/hora</th>
                     <th>Status</th>
                     <th>Ações</th>
                   </tr>
@@ -439,7 +442,7 @@ export default function CadastrosPage() {
                     <tr key={item.id}>
                       <td>{item.name}</td>
                       <td>{item.role || "-"}</td>
-                      <td>{item.weekly_salary.toFixed(2)}</td>
+                      <td>{item.hourly_rate.toFixed(2)}</td>
                       <td>{item.active ? "Ativo" : "Inativo"}</td>
                       <td>
                         <div className="cadastro-row-actions">
@@ -451,8 +454,8 @@ export default function CadastrosPage() {
                               setEmployeeEditId(item.id);
                               setEmployeeName(item.name);
                               setEmployeeRole(item.role ?? "");
-                              setEmployeeSalaryInput(
-                                moneyDraftFromNumber(Number(item.weekly_salary)) || "0",
+                              setEmployeeHourlyRateInput(
+                                moneyDraftFromNumber(Number(item.hourly_rate)) || "0",
                               );
                               setEmployeeActive(item.active);
                               setShowEmployeeModal(true);
@@ -679,14 +682,14 @@ export default function CadastrosPage() {
                   <input value={employeeRole} onChange={(e) => setEmployeeRole(e.target.value)} />
                 </label>
                 <label>
-                  Salário semanal
+                  Valor da hora
                   <input
                     type="text"
                     inputMode="decimal"
                     autoComplete="off"
                     placeholder="0,00"
-                    value={employeeSalaryInput}
-                    onChange={(e) => setEmployeeSalaryInput(sanitizeMoneyDraft(e.target.value))}
+                    value={employeeHourlyRateInput}
+                    onChange={(e) => setEmployeeHourlyRateInput(sanitizeMoneyDraft(e.target.value))}
                   />
                 </label>
                 {employeeEditId ? (
@@ -706,7 +709,7 @@ export default function CadastrosPage() {
                   <button
                     type="submit"
                     className="button-confirm"
-                    disabled={loading || !employeeSalaryValid}
+                    disabled={loading || !employeeHourlyRateValid}
                   >
                     {loading ? "Salvando..." : employeeEditId ? "Salvar" : "Cadastrar"}
                   </button>
