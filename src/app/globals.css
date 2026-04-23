@@ -1074,6 +1074,20 @@ label.checkbox-inline input {
   justify-content: flex-end;
 }
 
+.modal-actions--filters {
+  width: 100%;
+  grid-column: 1 / -1;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-actions--filters .button-secondary-action--filters {
+  min-width: 160px;
+  padding: 12px 20px;
+  white-space: nowrap;
+}
+
 .auth-form .button-cancel,
 .modal-actions .button-cancel {
   border: 1px solid #d96878;
@@ -1394,6 +1408,10 @@ label.checkbox-inline input {
   .week-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-compact { grid-template-columns: 1fr; }
   .form-compact button { max-width: 100%; }
+  .modal-actions--filters {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
   .lancamentos-actions { flex-direction: column; align-items: stretch; gap: 8px; }
 }
 

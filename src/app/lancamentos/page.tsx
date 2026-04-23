@@ -109,6 +109,21 @@ export default function LancamentosPage() {
     [transactionsForTotals],
   );
   const saldoFiltrado = totalEntradas - totalDespesas;
+  const incomeBySource = useMemo(() => {
+    const grouped = new Map<string, { label: string; total: number }>();
+    transactionsForTotals
+      .filter((item) => item.type === "income")
+      .forEach((item) => {
+        const sourceId = item.income_source_id ?? "__no_source__";
+        const sourceLabel = item.income_source?.name?.trim() || "Sem fonte de entrada";
+        const current = grouped.get(sourceId) ?? { label: sourceLabel, total: 0 };
+        current.total += Number(item.amount);
+        grouped.set(sourceId, current);
+      });
+    return Array.from(grouped.entries())
+      .map(([id, value]) => ({ id, ...value }))
+      .sort((a, b) => b.total - a.total);
+  }, [transactionsForTotals]);
 
   const parsedLancamentoAmount = useMemo(() => parseMoneyInput(amountInput), [amountInput]);
   const lancamentoAmountValid = parsedLancamentoAmount !== null && parsedLancamentoAmount > 0;
@@ -325,6 +340,18 @@ export default function LancamentosPage() {
     setShowFilterModal(false);
   }
 
+  function clearFilters() {
+    setDraftFilterFrom("");
+    setDraftFilterTo("");
+    setDraftFilterType("");
+    setDraftFilterStatus("");
+    setFilterFrom("");
+    setFilterTo("");
+    setFilterType("");
+    setFilterStatus("");
+    setShowFilterModal(false);
+  }
+
   if (!pageReady) {
     return <BrandedFullPageLoader />;
   }
@@ -358,6 +385,37 @@ export default function LancamentosPage() {
               Efetivos (exclui cancelados), alinhado aos totais.
             </p>
           </article>
+        </section>
+
+        <section className="card glass table-card" style={{ marginBottom: 14 }}>
+          <h3>Entradas por fonte (filtro atual)</h3>
+          {incomeBySource.length > 0 ? (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Fonte de entrada</th>
+                  <th className="table-num">Total</th>
+                  <th className="table-num">% das entradas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incomeBySource.map((row) => {
+                  const share = totalEntradas > 0 ? (row.total / totalEntradas) * 100 : 0;
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.label}</td>
+                      <td className="table-num">{formatCurrency(row.total, currency)}</td>
+                      <td className="table-num">{share.toFixed(1)}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <p className="hint" style={{ marginTop: 8 }}>
+              Nenhuma entrada encontrada no filtro atual.
+            </p>
+          )}
         </section>
 
         <section className="card glass lancamentos-actions" style={{ marginBottom: 14 }}>
@@ -628,9 +686,12 @@ export default function LancamentosPage() {
                     <option value="cancelled">Cancelado</option>
                   </select>
                 </label>
-                <div className="modal-actions">
+                <div className="modal-actions modal-actions--filters">
                   <button type="button" className="button-cancel" onClick={() => setShowFilterModal(false)}>
                     Fechar
+                  </button>
+                  <button type="button" className="button-secondary-action button-secondary-action--filters" onClick={clearFilters}>
+                    Limpar filtros
                   </button>
                   <button type="button" className="button-confirm" onClick={applyFilters}>
                     Aplicar filtros

@@ -13,6 +13,10 @@ import { cadastroDeleteErrorMessage, financeRepository } from "@/lib/supabase/fi
 
 type TabId = "funcionarios" | "fornecedores" | "fontes" | "categorias";
 
+function employeeHourlyRateValue(hourlyRate: number | null | undefined) {
+  return Number.isFinite(Number(hourlyRate)) ? Number(hourlyRate) : 0;
+}
+
 export default function CadastrosPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("funcionarios");
@@ -442,7 +446,7 @@ export default function CadastrosPage() {
                     <tr key={item.id}>
                       <td>{item.name}</td>
                       <td>{item.role || "-"}</td>
-                      <td>{item.hourly_rate.toFixed(2)}</td>
+                      <td>{employeeHourlyRateValue(item.hourly_rate).toFixed(2)}</td>
                       <td>{item.active ? "Ativo" : "Inativo"}</td>
                       <td>
                         <div className="cadastro-row-actions">
@@ -454,9 +458,7 @@ export default function CadastrosPage() {
                               setEmployeeEditId(item.id);
                               setEmployeeName(item.name);
                               setEmployeeRole(item.role ?? "");
-                              setEmployeeHourlyRateInput(
-                                moneyDraftFromNumber(Number(item.hourly_rate)) || "0",
-                              );
+                              setEmployeeHourlyRateInput(moneyDraftFromNumber(employeeHourlyRateValue(item.hourly_rate)) || "0");
                               setEmployeeActive(item.active);
                               setShowEmployeeModal(true);
                             }}

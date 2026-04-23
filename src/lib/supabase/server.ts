@@ -13,9 +13,17 @@ export async function createClient() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options);
-        });
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {
+          /**
+           * Em Server Components o `cookies()` do Next é read-only para escrita.
+           * O Supabase pode tentar refrescar a sessão e chamar `setAll` aqui — o middleware
+           * (`src/lib/supabase/middleware.ts`) é quem deve persistir os cookies na resposta.
+           */
+        }
       },
     },
   });

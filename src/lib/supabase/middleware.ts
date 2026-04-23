@@ -4,6 +4,33 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_ROUTES = new Set(["/auth"]);
 const COMPANY_SETUP_ROUTE = "/onboarding";
 
+function applyCacheHeaders(
+  response: NextResponse,
+  headers?: Record<string, string | undefined> | null,
+) {
+  if (!headers) return;
+  Object.entries(headers).forEach(([key, value]) => {
+    if (value) response.headers.set(key, value);
+  });
+}
+
+function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
+  const authCookieNames = request.cookies
+    .getAll()
+    .map((cookie) => cookie.name)
+    .filter((name) => name.includes("-auth-token"));
+
+  authCookieNames.forEach((name) => {
+    request.cookies.delete(name);
+    response.cookies.set({
+      name,
+      value: "",
+      maxAge: 0,
+      path: "/",
+    });
+  });
+}
+
 function isPublicRoute(pathname: string) {
   return (
     PUBLIC_ROUTES.has(pathname) ||
@@ -38,7 +65,7 @@ export async function updateSession(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({
           request,
@@ -46,6 +73,7 @@ export async function updateSession(request: NextRequest) {
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
         });
+        applyCacheHeaders(response, headers);
       },
     },
   });
@@ -58,8 +86,17 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth";
       url.searchParams.set("redirectTo", request.nextUrl.pathname);
-      return NextResponse.redirect(url);
+      const redirectResponse = NextResponse.redirect(url);
+      if (error?.code === "refresh_token_not_found") {
+        clearSupabaseAuthCookies(request, redirectResponse);
+      }
+      return redirectResponse;
     }
+
+    if (error?.code === "refresh_token_not_found") {
+      clearSupabaseAuthCookies(request, response);
+    }
+
     return response;
   }
 

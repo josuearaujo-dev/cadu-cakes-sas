@@ -43,6 +43,24 @@ let companyIdCache: { authUserId: string; companyId: string } | null = null;
 /** Pedidos paralelos partilham a mesma Promise (1× getUser + 1× companies por “rajada”). */
 let companyResolveInFlight: Promise<string> | null = null;
 
+function isMissingHourlyRateColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const payload = error as { message?: unknown; details?: unknown; hint?: unknown };
+  const text = [payload.message, payload.details, payload.hint]
+    .filter((v) => typeof v === "string")
+    .join(" ")
+    .toLowerCase();
+  return text.includes("hourly_rate") && (text.includes("column") || text.includes("schema cache"));
+}
+
+function normalizeEmployeeRow(row: Partial<Employee> & { weekly_salary?: number | null }): Employee {
+  const numericHourlyRate = Number(row.hourly_rate ?? row.weekly_salary ?? 0);
+  return {
+    ...(row as Employee),
+    hourly_rate: Number.isFinite(numericHourlyRate) ? numericHourlyRate : 0,
+  };
+}
+
 export function clearFinanceCompanyIdCache() {
   companyIdCache = null;
   companyResolveInFlight = null;
@@ -284,18 +302,61 @@ export const financeRepository = {
     return data;
   },
 
-  listEmployees(supabase: SupabaseClient) {
-    return listByCompany<Employee>(supabase, "employees");
+  async listEmployees(supabase: SupabaseClient) {
+    const companyId = await resolveCompanyId(supabase);
+    const { data, error } = await supabase
+      .from("employees")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) =>
+      normalizeEmployeeRow(row as Partial<Employee> & { weekly_salary?: number | null }),
+    );
   },
-  createEmployee(supabase: SupabaseClient, payload: EntityInput<Employee>) {
-    return insertByCompany<Employee>(supabase, "employees", payload);
+  async createEmployee(supabase: SupabaseClient, payload: EntityInput<Employee>) {
+    try {
+      return await insertByCompany<Employee>(supabase, "employees", payload);
+    } catch (error) {
+      if (!isMissingHourlyRateColumnError(error)) throw error;
+      const companyId = await resolveCompanyId(supabase);
+      const { data, error: fallbackError } = await supabase
+        .from("employees")
+        .insert({
+          company_id: companyId,
+          name: payload.name,
+          role: payload.role,
+          weekly_salary: payload.hourly_rate,
+          active: payload.active,
+        })
+        .select("*")
+        .single();
+      if (fallbackError) throw fallbackError;
+      return normalizeEmployeeRow(data as Partial<Employee> & { weekly_salary?: number | null });
+    }
   },
-  updateEmployee(
+  async updateEmployee(
     supabase: SupabaseClient,
     id: string,
     patch: Partial<Pick<Employee, "name" | "role" | "hourly_rate" | "active">>,
   ) {
-    return updateByCompanyRow<Employee>(supabase, "employees", id, patch as Record<string, unknown>);
+    try {
+      return await updateByCompanyRow<Employee>(supabase, "employees", id, patch as Record<string, unknown>);
+    } catch (error) {
+      if (!isMissingHourlyRateColumnError(error)) throw error;
+      const fallbackPatch: Record<string, unknown> = { ...patch };
+      if ("hourly_rate" in fallbackPatch) {
+        fallbackPatch.weekly_salary = fallbackPatch.hourly_rate;
+        delete fallbackPatch.hourly_rate;
+      }
+      const row = await updateByCompanyRow<Partial<Employee> & { weekly_salary?: number | null }>(
+        supabase,
+        "employees",
+        id,
+        fallbackPatch,
+      );
+      return normalizeEmployeeRow(row);
+    }
   },
   deleteEmployee(supabase: SupabaseClient, id: string) {
     return deleteByCompanyRow(supabase, "employees", id);

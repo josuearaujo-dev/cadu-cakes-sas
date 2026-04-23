@@ -11,6 +11,10 @@ import type { Employee } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/client";
 import { cadastroDeleteErrorMessage, financeRepository } from "@/lib/supabase/finance-repository";
 
+function employeeHourlyRateValue(hourlyRate: number | null | undefined) {
+  return Number.isFinite(Number(hourlyRate)) ? Number(hourlyRate) : 0;
+}
+
 export default function FuncionariosPage() {
   const router = useRouter();
   const [items, setItems] = useState<Employee[]>([]);
@@ -158,7 +162,7 @@ export default function FuncionariosPage() {
                 <tr key={item.id}>
                   <td>{item.name}</td>
                   <td>{item.role || "-"}</td>
-                  <td>{item.hourly_rate.toFixed(2)}</td>
+                  <td>{employeeHourlyRateValue(item.hourly_rate).toFixed(2)}</td>
                   <td>{item.active ? "Ativo" : "Inativo"}</td>
                   <td>
                     <div className="cadastro-row-actions">
@@ -170,7 +174,7 @@ export default function FuncionariosPage() {
                           setEditId(item.id);
                           setName(item.name);
                           setRole(item.role ?? "");
-                          setHourlyRateInput(moneyDraftFromNumber(Number(item.hourly_rate)) || "0");
+                          setHourlyRateInput(moneyDraftFromNumber(employeeHourlyRateValue(item.hourly_rate)) || "0");
                           setActive(item.active);
                           setShowModal(true);
                         }}
