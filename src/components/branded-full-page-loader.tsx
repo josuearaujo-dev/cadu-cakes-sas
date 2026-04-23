@@ -9,7 +9,7 @@ export function BrandedFullPageLoader({ message = "Carregando…" }: Props) {
       <div className="branded-full-page-loader__content">
         {/* eslint-disable-next-line @next/next/no-img-element -- loader leve, sem otimização */}
         <img
-          src="/cadu-cakes-logo.svg"
+          src="/logo-perfil-1024.png"
           alt="Cadu Cakes"
           width={120}
           height={120}

@@ -46,7 +46,7 @@ export function Sidebar() {
     <aside className={`sidebar glass ${collapsed ? "collapsed" : ""}`}>
       <div className="brand">
         <Image
-          src="/cadu-cakes-logo.svg"
+          src="/logo-perfil-1024.png"
           alt="Logo Cadu Cakes"
           width={42}
           height={42}
