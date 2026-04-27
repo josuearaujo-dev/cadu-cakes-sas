@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { getSupabaseEnv } from "./env";
+
 const PUBLIC_ROUTES = new Set(["/auth"]);
 const COMPANY_SETUP_ROUTE = "/onboarding";
 
@@ -48,10 +50,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) {
+  let url: string;
+  let anonKey: string;
+  try {
+    ({ url, anonKey } = getSupabaseEnv());
+  } catch {
     if (!isPublicRoute(request.nextUrl.pathname)) {
       const redirect = request.nextUrl.clone();
       redirect.pathname = "/auth";

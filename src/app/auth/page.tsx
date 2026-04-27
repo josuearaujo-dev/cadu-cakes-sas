@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { supabaseUserMessage } from "@/lib/supabase/error-message";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +32,7 @@ export default function AuthPage() {
       router.push(redirectTo);
       router.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao autenticar.";
-      setMessage(message);
+      setMessage(supabaseUserMessage(error) || "Falha ao autenticar.");
     } finally {
       setLoading(false);
     }

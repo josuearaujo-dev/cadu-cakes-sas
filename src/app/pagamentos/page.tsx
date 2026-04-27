@@ -20,6 +20,7 @@ import {
   weekStartLabel,
 } from "@/lib/week-start";
 import { createClient } from "@/lib/supabase/client";
+import { supabaseUserMessage } from "@/lib/supabase/error-message";
 import { cadastroDeleteErrorMessage, financeRepository } from "@/lib/supabase/finance-repository";
 
 type EmployeePaymentRow = {
@@ -184,7 +185,7 @@ export default function PagamentosPage() {
       });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao marcar como pago.");
+      setError(supabaseUserMessage(e) || "Erro ao marcar como pago.");
     } finally {
       setMarkingPaidId(null);
     }
@@ -266,7 +267,7 @@ export default function PagamentosPage() {
       closeEntryModal();
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao registrar pagamento.");
+      setError(supabaseUserMessage(e) || "Erro ao registrar pagamento.");
     } finally {
       setLoading(false);
     }

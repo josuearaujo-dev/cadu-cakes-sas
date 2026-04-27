@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { supabaseUserMessage } from "@/lib/supabase/error-message";
 import type {
   Category,
   Cheque,
@@ -276,6 +277,37 @@ async function deleteByCompanyRow(supabase: SupabaseClient, table: string, id: s
   }
 }
 
+export { supabaseUserMessage } from "@/lib/supabase/error-message";
+
+function isPostgresUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  return String((error as { code?: unknown }).code) === "23505";
+}
+
+function isMissingDbColumnError(error: unknown, column: string): boolean {
+  const text = supabaseUserMessage(error).toLowerCase();
+  const col = column.toLowerCase();
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code: unknown }).code)
+      : "";
+  if (code === "42703" && text.includes(col)) return true;
+  if (text.includes("schema cache") && text.includes(col)) return true;
+  if (text.includes("could not find") && text.includes(col)) return true;
+  return false;
+}
+
+async function insertEmployeePaymentRow(
+  supabase: SupabaseClient,
+  payload: Record<string, unknown>,
+): Promise<EmployeePayment> {
+  return insertByCompany<EmployeePayment>(
+    supabase,
+    "employee_payments",
+    payload as unknown as EntityInput<EmployeePayment>,
+  );
+}
+
 /** Mensagem amigável quando DELETE falha por FK (Postgres 23503). */
 export function cadastroDeleteErrorMessage(error: unknown): string {
   if (
@@ -425,10 +457,44 @@ export const financeRepository = {
     if (toInsert.status === "paid" && !toInsert.payment_date) {
       toInsert = { ...toInsert, payment_date: todayLocalISODate() };
     }
-    const row = await insertByCompany<EmployeePayment>(supabase, "employee_payments", {
-      ...toInsert,
+    let insertPayload: Record<string, unknown> = {
+      employee_id: toInsert.employee_id,
+      week_start: toInsert.week_start,
+      amount: toInsert.amount,
+      status: toInsert.status,
+      payment_date: toInsert.payment_date,
+      notes: toInsert.notes,
+      hours_worked: toInsert.hours_worked,
       transaction_id: null,
-    });
+    };
+
+    let row: EmployeePayment | null = null;
+    for (let attempt = 0; attempt < 6 && !row; attempt++) {
+      try {
+        row = await insertEmployeePaymentRow(supabase, insertPayload);
+      } catch (e) {
+        if (isPostgresUniqueViolation(e)) {
+          throw new Error(
+            "Já existe um pagamento de folha para este funcionário nesta semana de referência. Edite o existente ou escolha outra semana.",
+          );
+        }
+        if (isMissingDbColumnError(e, "hours_worked")) {
+          const { hours_worked: _h, ...rest } = insertPayload;
+          insertPayload = rest;
+          continue;
+        }
+        if (isMissingDbColumnError(e, "transaction_id")) {
+          const { transaction_id: _t, ...rest } = insertPayload;
+          insertPayload = rest;
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (!row) {
+      throw new Error("Não foi possível gravar o pagamento após várias tentativas. Verifique migrações e RLS no Supabase.");
+    }
+
     if (row.status === "paid") {
       return reconcileEmployeePaymentAfterWrite(supabase, row, row);
     }
@@ -463,7 +529,17 @@ export const financeRepository = {
       effective.payment_date = todayLocalISODate();
     }
 
-    const after = await updateByCompanyRow<EmployeePayment>(supabase, "employee_payments", id, effective);
+    let after: EmployeePayment;
+    try {
+      after = await updateByCompanyRow<EmployeePayment>(supabase, "employee_payments", id, effective);
+    } catch (e) {
+      if (isMissingDbColumnError(e, "hours_worked") && "hours_worked" in effective) {
+        const { hours_worked: _h, ...eff } = effective;
+        after = await updateByCompanyRow<EmployeePayment>(supabase, "employee_payments", id, eff);
+      } else {
+        throw e;
+      }
+    }
     return reconcileEmployeePaymentAfterWrite(supabase, before as EmployeePayment, after);
   },
   async deleteEmployeePayment(supabase: SupabaseClient, id: string) {
